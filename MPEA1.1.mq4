@@ -7,7 +7,13 @@
 #property version   "1.00"
 #property strict
 #define MAGICMA  0
+#import "user32.dll"
+   int GetAncestor(int hWnd, int gaFlags);
+   int GetDlgItem(int hDlg, int nIDDlgItem);
+   int PostMessageA(int hWnd, int Msg, int wParam, int lParam);
+#import
 
+#define WM_COMMAND   0x0111
 //Initializing variables
 extern bool      useProfitToClose       = true;
 extern double    profitToClose          = 0.25;
@@ -17,12 +23,16 @@ extern bool      AllSymbols             = false;
 extern bool      PendingOrders          = true;
 extern double    MaxSlippage            = 3;
 input double     Lots          =0.1;
-extern string    FileName = "Trades-2018-07-04.CSV";
+extern string    FileName = "Trades-2018-07-12.CSV";
 extern int paircolindex = 0;
 extern int datecolindex = 1;
 extern bool MM = TRUE;
 extern double Risk = 2;
 extern double LotDigits =2;
+extern int TradingStartHour = 10;
+extern int TradingStartMin = 30;
+extern int TradingEndHour = 21;
+extern int TradingEndMin = 2;
 string mp[5][10000]; // variable to store model results in array
 int rows ;
 
@@ -80,7 +90,9 @@ int OnInit(){
     for(int i = 1; i < rows ; i++){
         string sy = mp[0][i];
         StringToUpper(sy);
-        //ChartOpen(sy,PERIOD_D1);        
+        ChartOpen(sy,PERIOD_D1); 
+        int hwnd = WindowHandle(sy,PERIOD_D1);
+        PostMessageA(hwnd, WM_COMMAND, 33048, 0);       
     }
     clear = true;
     return(0);
@@ -311,24 +323,27 @@ double GetLots(double Risk) {
 void getModelPredictedValue( double& mpv[],datetime current_time,string pair){
     //string ct=StringSubstr(TimeToStr(current_time,TIME_DATE|TIME_SECONDS),0,13);
     string ct = TimeToStr(current_time,TIME_DATE);
+    //Print("CTime"+ct+" pair"+pair);
     StringReplace(ct,".","");
     StringToLower(pair);
 
     for(int i = 1; i < rows ; i++){
+        //Print("Row"+mp[datecolindex][i]);
         if(mp[datecolindex][i]==ct && mp[paircolindex][i]==pair){
             mpv[1] = mp[2][i];
             mpv[2] = mp[3][i];
             mpv[3] = mp[4][i];
         }
     }
+    //Print("MV"+mpv[2]);
     return;
 }
 
 bool IsTradeExistInHistory() {
     bool isExistInHistory = false;
-    datetime today_midnight=TimeCurrent()-(TimeCurrent()%(PERIOD_D1*60));
+    datetime today_midnight=TimeCurrent()-(TimeCurrent()%(PERIOD_D1*60));    
     for(int i=OrdersHistoryTotal()-1;i>=0;i--){
-        if(OrderSelect(i,SELECT_BY_POS,MODE_HISTORY)&& OrderCloseTime()>=today_midnight)
+        if(OrderSelect(i,SELECT_BY_POS,MODE_HISTORY)&& OrderOpenTime()>=today_midnight)
         {
             if(OrderSymbol()==Symbol())
             {
@@ -339,6 +354,13 @@ bool IsTradeExistInHistory() {
     return isExistInHistory;
 }
 
+bool CheckTradingTime()
+{
+   if(TradingStartHour < TradingEndHour && TimeHour(TimeCurrent()) < TradingStartHour || TimeHour(TimeCurrent()) >= TradingEndHour) return(false);
+   if(TradingStartHour > TradingEndHour && TimeHour(TimeCurrent()) < TradingStartHour && TimeHour(TimeCurrent()) >= TradingEndHour) return(false);
+   return(true);
+}
+
 //+------------------------------------------------------------------+
 //| OnTick function to get new tick details for symbols                                                 |
 //+------------------------------------------------------------------+
@@ -346,11 +368,15 @@ void OnTick() {
     double modelPredictedDetails[10];
     double oLots,minstoplevel,stoploss,takeprofit,nolots;
     int    ticket,total;
-
+    //IsTradeExistInHistory();
     // Check where is autotrading enabled or not
     if(IsTradeAllowed()==false)
     {
         Print("Trade is not allowed");
+        return;
+    }
+    if(!CheckTradingTime()){
+    Print("Trade is not allowed at this time.");
         return;
     }
 
@@ -361,9 +387,12 @@ void OnTick() {
     oLots = GetLots(modelPredictedDetails[2]);
 
     total=OrdersTotal();
-    //Print("Opened Order for "+Symbol()+":"+Opened()+" is available in history " + IsTradeExistInHistory()); 
-    if(Opened() <= 0 && !IsTradeExistInHistory())
-    {     
+    Print("Total Opened"+total);
+    Print("Opened Order for "+Symbol()+":"+Opened());
+    //Print("Opened Order for "+Symbol()+":"+(Opened() == 0)+" is available in history " + IsTradeExistInHistory()); 
+    if(Opened() == 0 && !IsTradeExistInHistory())
+    {  
+        Print("Opened Order for "+Symbol()+":"+Opened()+" is available in history " + IsTradeExistInHistory());   
         //--- no opened orders identified
         if(AccountFreeMargin()<(16*oLots))
         {
@@ -371,12 +400,13 @@ void OnTick() {
             return;
         }
         if(modelPredictedDetails[1]==0){
+            Print("Model Predictition NA for this.");
             return;
         }
         RefreshRates();
 
-        stoploss = NormalizeDouble(Bid-minstoplevel*Point,Digits);
-        takeprofit = NormalizeDouble(Bid+minstoplevel*Point,Digits);
+        stoploss = 0;//NormalizeDouble(Bid-minstoplevel*Point,Digits);
+        takeprofit = 0;//NormalizeDouble(Bid+minstoplevel*Point,Digits);
         // Check Buy condition for current symbol
         
         if(modelPredictedDetails[1]==1){
@@ -419,7 +449,7 @@ void OnTick() {
     }
 
     profit = ProfitCheck();
-
+/*
     if(useProfitToClose)
     {
         if(profit>profitToClose)
@@ -470,17 +500,18 @@ void OnTick() {
                         clear=false;
             }
         }
-    }
+    } */
     // Closed the order for currency if exit value more than the model exist value
     if(modelPredictedDetails[1]==1) {
         if(PriceWhenOrderOpendForCurrentPair()!=0){
-        double existPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair();
-        Print("CurrentPrice:"+MarketInfo(Symbol(), MODE_BID)+"InitialPrice:"+PriceWhenOrderOpendForCurrentPair()+",Buy ExistPV:"+existPercentValue+" ModelExitPV"+modelPredictedDetails[3]);
+        double existPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;
+        //Print("CurrentPrice:"+MarketInfo(Symbol(), MODE_BID)+"InitialPrice:"+PriceWhenOrderOpendForCurrentPair()+",Buy ExistPV:"+existPercentValue+" ModelExitPV"+modelPredictedDetails[3]);
         if(existPercentValue >  modelPredictedDetails[3]) {      
+            Print("CurrentPrice:"+MarketInfo(Symbol(), MODE_BID)+"InitialPrice:"+PriceWhenOrderOpendForCurrentPair()+",Buy ExistPV:"+existPercentValue+" ModelExitPV"+modelPredictedDetails[3]);
           
             //Print("Buy ExistPV:"+existPercentValue+" ModelExitPV"+modelPredictedDetails[3]);
             //Print("Closing Buy orders more than "+modelPredictedDetails[3] +" for "+Symbol());
-            /* if(AllSymbols)
+             if(AllSymbols)
                {
                   if(PendingOrders)
                      if(!CloseDeleteAll())
@@ -497,11 +528,13 @@ void OnTick() {
                   if(!PendingOrders)
                      if(!CloseDeleteAllCurrentNonPending())
                         clear=false;
-               }*/
+               }
         }
         }
         // Close all open order at end of day;
-        if (Hour() == 0 && Minute() < 2 && OrdersTotal() > 0){
+        //Print("Hour"+Hour()+" Min"+Minute());
+        if (Hour() == TradingEndHour && Minute() < TradingEndMin && OrdersTotal() > 0){
+            Print("Closing All Orders Now.");
             CloseDeleteAll();
         }
     }
