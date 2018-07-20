@@ -7,13 +7,7 @@
 #property version   "1.00"
 #property strict
 #define MAGICMA  0
-#import "user32.dll"
-   int GetAncestor(int hWnd, int gaFlags);
-   int GetDlgItem(int hDlg, int nIDDlgItem);
-   int PostMessageA(int hWnd, int Msg, int wParam, int lParam);
-#import
 
-#define WM_COMMAND   0x0111
 //Initializing variables
 extern bool      useProfitToClose       = true;
 extern double    profitToClose          = 0.25;
@@ -29,10 +23,10 @@ extern int datecolindex = 1;
 extern bool MM = TRUE;
 extern double Risk = 2;
 extern double LotDigits =2;
-extern int TradingStartHour = 10;
-extern int TradingStartMin = 30;
-extern int TradingEndHour = 21;
-extern int TradingEndMin = 2;
+extern int TradingStartHour = 00;
+extern int TradingStartMin = 10;
+extern int TradingEndHour = 22;
+extern int TradingEndMin = 00;
 string mp[5][10000]; // variable to store model results in array
 int rows ;
 
@@ -87,17 +81,39 @@ int OnInit(){
         pips2dbl = Point;   pips2point = 1;pipValue = (MarketInfo(Symbol(),MODE_TICKVALUE))*1;
     }
     // Open Chart window for currency pairs listed in model results
-    for(int i = 1; i < rows ; i++){
+    
+   
+    for(int i = 1; i <= rows ; i++){   
         string sy = mp[0][i];
-        StringToUpper(sy);
-        ChartOpen(sy,PERIOD_D1); 
-        int hwnd = WindowHandle(sy,PERIOD_D1);
-        PostMessageA(hwnd, WM_COMMAND, 33048, 0);       
+        StringToUpper(sy);        
+        long chartId= CheckChartWindowOpen(sy);
+        if(chartId>0){
+        ChartRedraw(chartId);
+        Sleep(1000);
+        }
+        else {
+        ChartOpen(sy,PERIOD_D1);
+        Sleep(1000);
+        }               
     }
+    
     clear = true;
     return(0);
 }
-
+// Check whether chart window already open
+long CheckChartWindowOpen(string pair){
+   string chart_symbol;
+   long chartID=ChartFirst();
+   while(chartID >= 0)
+   {
+   chart_symbol = ChartSymbol(chartID); 
+   if(chart_symbol==pair){
+   return chartID;
+   }
+   chartID = ChartNext(chartID);   
+   }
+   return 0;
+}
 // function to close all open orders
 bool CloseDeleteAll() {
     int total  = OrdersTotal();
@@ -327,7 +343,7 @@ void getModelPredictedValue( double& mpv[],datetime current_time,string pair){
     StringReplace(ct,".","");
     StringToLower(pair);
 
-    for(int i = 1; i < rows ; i++){
+    for(int i = 1; i <= rows ; i++){
         //Print("Row"+mp[datecolindex][i]);
         if(mp[datecolindex][i]==ct && mp[paircolindex][i]==pair){
             mpv[1] = mp[2][i];
@@ -355,9 +371,8 @@ bool IsTradeExistInHistory() {
 }
 
 bool CheckTradingTime()
-{
-   if(TradingStartHour < TradingEndHour && TimeHour(TimeCurrent()) < TradingStartHour || TimeHour(TimeCurrent()) >= TradingEndHour) return(false);
-   if(TradingStartHour > TradingEndHour && TimeHour(TimeCurrent()) < TradingStartHour && TimeHour(TimeCurrent()) >= TradingEndHour) return(false);
+{  
+   if(Hour() > TradingStartHour || (Hour() == TradingStartHour && Minute() >= TradingStartMin)) return(false);  
    return(true);
 }
 
@@ -375,7 +390,7 @@ void OnTick() {
         Print("Trade is not allowed");
         return;
     }
-    if(!CheckTradingTime()){
+    if(CheckTradingTime()){
     Print("Trade is not allowed at this time.");
         return;
     }
@@ -414,6 +429,13 @@ void OnTick() {
             if(ticket>0) {}
             else
                 Print("Error opening BUY order : ",GetLastError());
+        }
+        if(modelPredictedDetails[1]==-1)
+        {        
+         ticket=OrderSend(Symbol(),OP_SELL,oLots,Bid,3,stoploss,takeprofit,"",MAGICMA,0,Red);
+         if(ticket>0){}
+         else
+            Print("Error opening SELL order : ",GetLastError());
         }
         
     }
@@ -475,7 +497,6 @@ void OnTick() {
             }
         }
     }
-
     if(useLossToClose)
     {
         if(profit<-lossToClose)
@@ -502,15 +523,15 @@ void OnTick() {
         }
     } */
     // Closed the order for currency if exit value more than the model exist value
-    if(modelPredictedDetails[1]==1) {
-        if(PriceWhenOrderOpendForCurrentPair()!=0){
-        double existPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;
-        //Print("CurrentPrice:"+MarketInfo(Symbol(), MODE_BID)+"InitialPrice:"+PriceWhenOrderOpendForCurrentPair()+",Buy ExistPV:"+existPercentValue+" ModelExitPV"+modelPredictedDetails[3]);
+    if(PriceWhenOrderOpendForCurrentPair()!=0) {
+        double existPercentValue;
+        if(modelPredictedDetails[1]==1) {
+        existPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;
+        }
+        if(modelPredictedDetails[1]==-1){
+        existPercentValue = (MarketInfo(Symbol(), MODE_ASK) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;      
+        }        
         if(existPercentValue >  modelPredictedDetails[3]) {      
-            Print("CurrentPrice:"+MarketInfo(Symbol(), MODE_BID)+"InitialPrice:"+PriceWhenOrderOpendForCurrentPair()+",Buy ExistPV:"+existPercentValue+" ModelExitPV"+modelPredictedDetails[3]);
-          
-            //Print("Buy ExistPV:"+existPercentValue+" ModelExitPV"+modelPredictedDetails[3]);
-            //Print("Closing Buy orders more than "+modelPredictedDetails[3] +" for "+Symbol());
              if(AllSymbols)
                {
                   if(PendingOrders)
@@ -529,15 +550,15 @@ void OnTick() {
                      if(!CloseDeleteAllCurrentNonPending())
                         clear=false;
                }
-        }
-        }
-        // Close all open order at end of day;
-        //Print("Hour"+Hour()+" Min"+Minute());
-        if (Hour() == TradingEndHour && Minute() < TradingEndMin && OrdersTotal() > 0){
+        }              
+        
+    }
+     // Close all open order at end of day;
+     //Print("Hour"+Hour()+" Min"+Minute());
+    if (Hour() == TradingEndHour && Minute() >= TradingEndMin && OrdersTotal() > 0){
             Print("Closing All Orders Now.");
             CloseDeleteAll();
         }
-    }
 
 }
 
