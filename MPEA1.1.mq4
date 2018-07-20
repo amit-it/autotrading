@@ -523,15 +523,10 @@ void OnTick() {
         }
     } */
     // Closed the order for currency if exit value more than the model exist value
-    if(PriceWhenOrderOpendForCurrentPair()!=0) {
-        double existPercentValue;
+    if(PriceWhenOrderOpendForCurrentPair()!=0) {        
         if(modelPredictedDetails[1]==1) {
-        existPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;
-        }
-        if(modelPredictedDetails[1]==-1){
-        existPercentValue = (MarketInfo(Symbol(), MODE_ASK) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;      
-        }        
-        if(existPercentValue >  modelPredictedDetails[3]) {      
+        double buyExistPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;
+        if(buyExistPercentValue >  modelPredictedDetails[3]) {      
              if(AllSymbols)
                {
                   if(PendingOrders)
@@ -550,7 +545,33 @@ void OnTick() {
                      if(!CloseDeleteAllCurrentNonPending())
                         clear=false;
                }
-        }              
+        }
+        }
+        if(modelPredictedDetails[1]==-1){
+        double sellExistPercentValue = (MarketInfo(Symbol(), MODE_ASK) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;      
+        //Print("Sell ExitV"+sellExistPercentValue+" ModelExitV"+modelPredictedDetails[3]);
+        if(sellExistPercentValue <  modelPredictedDetails[3]) {      
+             if(AllSymbols)
+               {
+                  if(PendingOrders)
+                     if(!CloseDeleteAll())
+                        clear=false;
+                  if(!PendingOrders)
+                     if(!CloseDeleteAllNonPending())
+                        clear=false;
+               }
+               if(!AllSymbols)
+               {
+                  if(PendingOrders)
+                     if(!CloseDeleteAllCurrent())
+                        clear=false;
+                  if(!PendingOrders)
+                     if(!CloseDeleteAllCurrentNonPending())
+                        clear=false;
+               }
+        }
+        }        
+                      
         
     }
      // Close all open order at end of day;
