@@ -27,6 +27,17 @@ extern int TradingStartHour = 00;
 extern int TradingStartMin = 10;
 extern int TradingEndHour = 22;
 extern int TradingEndMin = 00;
+
+extern string Inditext = "Exit Percentage:";
+extern int TimezonefromServer = 0;
+extern int ClockSize = 14;
+string FontType = "Verdana";
+extern color ClockColor = Blue;
+extern int ClockCorner = 0;
+extern int yLine = 20;
+extern int xCol = 10;
+extern int window = 0;
+
 string mp[5][10000]; // variable to store model results in array
 int rows ;
 
@@ -92,7 +103,7 @@ int OnInit(){
         Sleep(1000);
         }
         else {
-        ChartOpen(sy,PERIOD_D1);
+        //ChartOpen(sy,PERIOD_D1);
         Sleep(1000);
         }               
     }
@@ -523,9 +534,14 @@ void OnTick() {
         }
     } */
     // Closed the order for currency if exit value more than the model exist value
-    if(PriceWhenOrderOpendForCurrentPair()!=0) {        
+    if(PriceWhenOrderOpendForCurrentPair()!=0) {
+        ObjectDelete("ModelExitPerc"+Symbol());
+        DisplayText("ModelExitPerc"+Symbol(), yLine, xCol, "Thresold  "+DoubleToString(modelPredictedDetails[3],5) , ClockSize,FontType, Green);
+                
         if(modelPredictedDetails[1]==1) {
         double buyExistPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;
+        ObjectDelete("ExitPercPair"+Symbol());
+        DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(buyExistPercentValue,5), ClockSize,FontType, ClockColor);
         if(buyExistPercentValue >  modelPredictedDetails[3]) {      
              if(AllSymbols)
                {
@@ -550,7 +566,9 @@ void OnTick() {
         if(modelPredictedDetails[1]==-1){
         double sellExistPercentValue = (MarketInfo(Symbol(), MODE_ASK) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;      
         //Print("Sell ExitV"+sellExistPercentValue+" ModelExitV"+modelPredictedDetails[3]);
-        if(sellExistPercentValue <  modelPredictedDetails[3]) {      
+        ObjectDelete("ExitPercPair"+Symbol());
+        DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(sellExistPercentValue,5), ClockSize,FontType, ClockColor);  
+        if(sellExistPercentValue <  modelPredictedDetails[3]){      
              if(AllSymbols)
                {
                   if(PendingOrders)
@@ -579,8 +597,17 @@ void OnTick() {
     if (Hour() == TradingEndHour && Minute() >= TradingEndMin && OrdersTotal() > 0){
             Print("Closing All Orders Now.");
             CloseDeleteAll();
-        }
+        }       
+  
 
+}
+
+void DisplayText(string eName, int eYD, int eXD, string eText, int eSize, string eFont, color eColor) {
+   ObjectCreate(eName, OBJ_LABEL, window, 0, 0);
+   ObjectSet(eName, OBJPROP_CORNER, ClockCorner);
+   ObjectSet(eName, OBJPROP_XDISTANCE, eXD);
+   ObjectSet(eName, OBJPROP_YDISTANCE, eYD);
+   ObjectSetText(eName, eText, eSize, eFont, eColor);
 }
 
 //+------------------------------------------------------------------+
