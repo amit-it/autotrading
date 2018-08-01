@@ -27,18 +27,19 @@ extern int TradingStartHour = 00;
 extern int TradingStartMin = 10;
 extern int TradingEndHour = 22;
 extern int TradingEndMin = 00;
+extern int MinOverallProfitPercent = 3; 
 
 extern string Inditext = "Exit Percentage:";
-extern int TimezonefromServer = 0;
-extern int ClockSize = 14;
+extern int Size = 14;
 string FontType = "Verdana";
-extern color ClockColor = Blue;
-extern int ClockCorner = 0;
+extern color Color = Blue;
+extern int Corner = 0;
 extern int yLine = 20;
 extern int xCol = 10;
 extern int window = 0;
+extern double StartingAccountBalance; 
 
-string mp[5][10000]; // variable to store model results in array
+string mp[6][10000]; // variable to store model results in array
 int rows ;
 
 double pips2dbl, pips2point, pipValue, maxSlippage, profit;
@@ -52,6 +53,7 @@ bool   clear;
 int OnInit(){
     int row=0,col=0;
     int colCnt;
+    StartingAccountBalance = AccountBalance();
     int handle=FileOpen(FileName,FILE_CSV|FILE_READ,",");
 
     if(handle>0)
@@ -103,7 +105,7 @@ int OnInit(){
         Sleep(1000);
         }
         else {
-        //ChartOpen(sy,PERIOD_D1);
+        ChartOpen(sy,PERIOD_D1);
         Sleep(1000);
         }               
     }
@@ -275,6 +277,54 @@ double ProfitCheck() {
     return(profit);
 }
 
+double getInvestment(int what)
+{
+   double projected = 0;
+   for(int i=0;i<OrdersTotal();i++)
+   {
+      if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
+      {
+            double pip = MathAbs(OrderOpenPrice()-OrderStopLoss());
+            double pipC = MathAbs(OrderOpenPrice()-OrderClosePrice());
+            double delta = MarketInfo (OrderSymbol (), MODE_TICKVALUE) / MarketInfo(OrderSymbol(), MODE_TICKSIZE);
+            double p = pip*delta*OrderLots();
+            double pC = pipC*delta*OrderLots();
+            if(pC == 0) pC = 1.0;
+            double exchange = OrderProfit()/pC;
+            p *= exchange;
+            p += OrderCommission();
+            p += OrderSwap();
+            if(what == 0 && OrderProfit() > 0){
+               projected += p;
+               }
+            else if(what == 1 && (( (OrderType() == OP_SELL && OrderStopLoss() > OrderOpenPrice()) ||
+                                (OrderType() == OP_BUY && OrderStopLoss() < OrderOpenPrice()) )
+                                ||
+                                OrderStopLoss() == 0)
+                     )
+            projected += p;
+      }
+   }
+   return (projected);
+}
+double OverAllProfitCheck() {
+    double AccountEquityBalance = AccountEquity();
+    
+    double profit=AccountEquityBalance - StartingAccountBalance;
+    
+    double total_invested = 0;
+    int total  = OrdersTotal();
+    for (int cnt = total-1 ; cnt >=0 ; cnt--)
+    {   Print("Open Order Amount"+(OrderOpenPrice() * OrderLots() * MarketInfo(OrderSymbol(), MODE_TICKVALUE)/MarketInfo(OrderSymbol(), MODE_TICKSIZE)));
+           
+        Print("Profit2"+OrderProfit()+"Profit1"+((OrderOpenPrice()-OrderClosePrice()) * OrderLots() * MarketInfo(OrderSymbol(), MODE_TICKVALUE)/MarketInfo(OrderSymbol(), MODE_TICKSIZE)));        
+        OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES);
+        profit+=OrderProfit();
+        total_invested +=OrderOpenPrice();
+    }
+    return(profit/total_invested*100);
+}
+
 //Check opened price for a pair
 double PriceWhenOrderOpendForCurrentPair() {
     double existing = 0;
@@ -360,6 +410,7 @@ void getModelPredictedValue( double& mpv[],datetime current_time,string pair){
             mpv[1] = mp[2][i];
             mpv[2] = mp[3][i];
             mpv[3] = mp[4][i];
+            mpv[4] = mp[5][i];
         }
     }
     //Print("MV"+mpv[2]);
@@ -431,7 +482,7 @@ void OnTick() {
         }
         RefreshRates();
 
-        stoploss = 0;//NormalizeDouble(Bid-minstoplevel*Point,Digits);
+        stoploss = modelPredictedDetails[4];//NormalizeDouble(Bid-minstoplevel*Point,Digits);
         takeprofit = 0;//NormalizeDouble(Bid+minstoplevel*Point,Digits);
         // Check Buy condition for current symbol
         
@@ -534,14 +585,15 @@ void OnTick() {
         }
     } */
     // Closed the order for currency if exit value more than the model exist value
-    if(PriceWhenOrderOpendForCurrentPair()!=0) {
-        ObjectDelete("ModelExitPerc"+Symbol());
-        DisplayText("ModelExitPerc"+Symbol(), yLine, xCol, "Thresold  "+DoubleToString(modelPredictedDetails[3],5) , ClockSize,FontType, Green);
-                
+    if(PriceWhenOrderOpendForCurrentPair()!=0) {    
+        //ObjectDelete("ModelExitPerc"+Symbol());
+        //DisplayText("ModelExitPerc"+Symbol(), yLine, xCol, "Thresold  "+DoubleToString(modelPredictedDetails[3],5) , Size,FontType, Red);
+            
         if(modelPredictedDetails[1]==1) {
         double buyExistPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;
-        ObjectDelete("ExitPercPair"+Symbol());
-        DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(buyExistPercentValue,5), ClockSize,FontType, ClockColor);
+        //ObjectDelete("ExitPercPair"+Symbol());
+        //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(buyExistPercentValue,5), Size,FontType, Color);
+        
         if(buyExistPercentValue >  modelPredictedDetails[3]) {      
              if(AllSymbols)
                {
@@ -566,9 +618,9 @@ void OnTick() {
         if(modelPredictedDetails[1]==-1){
         double sellExistPercentValue = (MarketInfo(Symbol(), MODE_ASK) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;      
         //Print("Sell ExitV"+sellExistPercentValue+" ModelExitV"+modelPredictedDetails[3]);
-        ObjectDelete("ExitPercPair"+Symbol());
-        DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(sellExistPercentValue,5), ClockSize,FontType, ClockColor);  
-        if(sellExistPercentValue <  modelPredictedDetails[3]){      
+        //ObjectDelete("ExitPercPair"+Symbol());
+        //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(sellExistPercentValue,5), Size,FontType, Color);  
+        if(sellExistPercentValue <  modelPredictedDetails[3]) {      
              if(AllSymbols)
                {
                   if(PendingOrders)
@@ -593,18 +645,17 @@ void OnTick() {
         
     }
      // Close all open order at end of day;
-     //Print("Hour"+Hour()+" Min"+Minute());
-    if (Hour() == TradingEndHour && Minute() >= TradingEndMin && OrdersTotal() > 0){
+    Print("Get Invested"+getInvestment(1) + " in"+getInvestment(0)+ " Account Profit"+AccountProfit());
+    if ((Hour() == TradingEndHour && Minute() >= TradingEndMin && OrdersTotal() > 0)|| MinOverallProfitPercent <= OverAllProfitCheck() ){
             Print("Closing All Orders Now.");
             CloseDeleteAll();
-        }       
-  
+        }
 
 }
 
 void DisplayText(string eName, int eYD, int eXD, string eText, int eSize, string eFont, color eColor) {
    ObjectCreate(eName, OBJ_LABEL, window, 0, 0);
-   ObjectSet(eName, OBJPROP_CORNER, ClockCorner);
+   ObjectSet(eName, OBJPROP_CORNER, Corner);
    ObjectSet(eName, OBJPROP_XDISTANCE, eXD);
    ObjectSet(eName, OBJPROP_YDISTANCE, eYD);
    ObjectSetText(eName, eText, eSize, eFont, eColor);
