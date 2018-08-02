@@ -27,8 +27,7 @@ extern int TradingStartHour = 00;
 extern int TradingStartMin = 10;
 extern int TradingEndHour = 22;
 extern int TradingEndMin = 00;
-extern int MinOverallProfitPercent = 3; 
-
+extern double MinOverallProfitPercent = 3; 
 extern string Inditext = "Exit Percentage:";
 extern int Size = 14;
 string FontType = "Verdana";
@@ -277,52 +276,36 @@ double ProfitCheck() {
     return(profit);
 }
 
-double getInvestment(int what)
-{
-   double projected = 0;
-   for(int i=0;i<OrdersTotal();i++)
-   {
-      if(OrderSelect(i, SELECT_BY_POS, MODE_TRADES))
-      {
-            double pip = MathAbs(OrderOpenPrice()-OrderStopLoss());
-            double pipC = MathAbs(OrderOpenPrice()-OrderClosePrice());
-            double delta = MarketInfo (OrderSymbol (), MODE_TICKVALUE) / MarketInfo(OrderSymbol(), MODE_TICKSIZE);
-            double p = pip*delta*OrderLots();
-            double pC = pipC*delta*OrderLots();
-            if(pC == 0) pC = 1.0;
-            double exchange = OrderProfit()/pC;
-            p *= exchange;
-            p += OrderCommission();
-            p += OrderSwap();
-            if(what == 0 && OrderProfit() > 0){
-               projected += p;
-               }
-            else if(what == 1 && (( (OrderType() == OP_SELL && OrderStopLoss() > OrderOpenPrice()) ||
-                                (OrderType() == OP_BUY && OrderStopLoss() < OrderOpenPrice()) )
-                                ||
-                                OrderStopLoss() == 0)
-                     )
-            projected += p;
-      }
-   }
-   return (projected);
-}
 double OverAllProfitCheck() {
     double AccountEquityBalance = AccountEquity();
     
-    double profit=AccountEquityBalance - StartingAccountBalance;
+    double profit=0;
     
     double total_invested = 0;
     int total  = OrdersTotal();
     for (int cnt = total-1 ; cnt >=0 ; cnt--)
-    {   Print("Open Order Amount"+(OrderOpenPrice() * OrderLots() * MarketInfo(OrderSymbol(), MODE_TICKVALUE)/MarketInfo(OrderSymbol(), MODE_TICKSIZE)));
-           
-        Print("Profit2"+OrderProfit()+"Profit1"+((OrderOpenPrice()-OrderClosePrice()) * OrderLots() * MarketInfo(OrderSymbol(), MODE_TICKVALUE)/MarketInfo(OrderSymbol(), MODE_TICKSIZE)));        
-        OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES);
-        profit+=OrderProfit();
-        total_invested +=OrderOpenPrice();
+    {   
+        if(OrderSelect(cnt, SELECT_BY_POS, MODE_TRADES))
+        {
+        profit += OrderProfit();
+        total_invested += OrderOpenPrice() * OrderLots() * MarketInfo(OrderSymbol(), MODE_TICKVALUE)/MarketInfo(OrderSymbol(), MODE_TICKSIZE);
+        }
     }
-    return(profit/total_invested*100);
+    
+    datetime today_midnight=TimeCurrent()-(TimeCurrent()%(PERIOD_D1*60));    
+    for(int i=OrdersHistoryTotal()-1;i>=0;i--){
+        if(OrderSelect(i,SELECT_BY_POS,MODE_HISTORY)&& OrderOpenTime()>=today_midnight)
+        {
+        profit += OrderProfit();
+        total_invested += OrderOpenPrice() * OrderLots() * MarketInfo(OrderSymbol(), MODE_TICKVALUE)/MarketInfo(OrderSymbol(), MODE_TICKSIZE);            
+        }
+    }
+    if(total_invested==0) {
+    return 0;
+    }    
+    else {
+      return(profit/total_invested*100);
+    }
 }
 
 //Check opened price for a pair
@@ -379,7 +362,7 @@ double GetLots(double Risk) {
     double lotsize = MarketInfo(Symbol(), MODE_LOTSIZE);
     double stoplevel = MarketInfo(Symbol(), MODE_STOPLEVEL);
     double lots = Lots;
-    double MinLots = 0.01; double MaximalLots = 50.0;
+    double MinLots = 0.01; double MaximalLots = 5.0;
 
     if(MM)
     {
@@ -432,6 +415,18 @@ bool IsTradeExistInHistory() {
     return isExistInHistory;
 }
 
+int TotalClosedOrderInHistory() {
+    int count = 0;
+    datetime today_midnight=TimeCurrent()-(TimeCurrent()%(PERIOD_D1*60));    
+    for(int i=OrdersHistoryTotal()-1;i>=0;i--){
+        if(OrderSelect(i,SELECT_BY_POS,MODE_HISTORY)&& OrderOpenTime()>=today_midnight)
+        {
+            count++;
+        }
+    }
+    return count;
+}
+
 bool CheckTradingTime()
 {  
    if(Hour() > TradingStartHour || (Hour() == TradingStartHour && Minute() >= TradingStartMin)) return(false);  
@@ -444,7 +439,7 @@ bool CheckTradingTime()
 void OnTick() {
     double modelPredictedDetails[10];
     double oLots,minstoplevel,stoploss,takeprofit,nolots;
-    int    ticket,total;
+    int    ticket,total,totalOrderInHistory;
     //IsTradeExistInHistory();
     // Check where is autotrading enabled or not
     if(IsTradeAllowed()==false)
@@ -464,9 +459,8 @@ void OnTick() {
     oLots = GetLots(modelPredictedDetails[2]);
 
     total=OrdersTotal();
-    Print("Total Opened"+total);
-    Print("Opened Order for "+Symbol()+":"+Opened());
-    //Print("Opened Order for "+Symbol()+":"+(Opened() == 0)+" is available in history " + IsTradeExistInHistory()); 
+    totalOrderInHistory = TotalClosedOrderInHistory();
+    int TotalOpenedClosedOrders = total + totalOrderInHistory;    
     if(Opened() == 0 && !IsTradeExistInHistory())
     {  
         Print("Opened Order for "+Symbol()+":"+Opened()+" is available in history " + IsTradeExistInHistory());   
@@ -482,7 +476,7 @@ void OnTick() {
         }
         RefreshRates();
 
-        stoploss = modelPredictedDetails[4];//NormalizeDouble(Bid-minstoplevel*Point,Digits);
+        stoploss = NormalizeDouble(Ask*(100-modelPredictedDetails[4])/100,Digits);//NormalizeDouble(Bid-minstoplevel*Point,Digits);
         takeprofit = 0;//NormalizeDouble(Bid+minstoplevel*Point,Digits);
         // Check Buy condition for current symbol
         
@@ -492,6 +486,7 @@ void OnTick() {
             else
                 Print("Error opening BUY order : ",GetLastError());
         }
+        stoploss = NormalizeDouble(Bid*(100-modelPredictedDetails[4])/100,Digits);
         if(modelPredictedDetails[1]==-1)
         {        
          ticket=OrderSend(Symbol(),OP_SELL,oLots,Bid,3,stoploss,takeprofit,"",MAGICMA,0,Red);
@@ -533,57 +528,7 @@ void OnTick() {
     }
 
     profit = ProfitCheck();
-/*
-    if(useProfitToClose)
-    {
-        if(profit>profitToClose)
-        {
-            Print("Closing Few Trade with profit");
-            if(AllSymbols)
-            {
-                if(PendingOrders)
-                    if(!CloseDeleteAll())
-                        clear=false;
-                if(!PendingOrders)
-                    if(!CloseDeleteAllNonPending())
-                        clear=false;
-            }
-            if(!AllSymbols)
-            {
-                if(PendingOrders)
-                    if(!CloseDeleteAllCurrent())
-                        clear=false;
-                if(!PendingOrders)
-                    if(!CloseDeleteAllCurrentNonPending())
-                        clear=false;
-            }
-        }
-    }
-    if(useLossToClose)
-    {
-        if(profit<-lossToClose)
-        {
-            Alert("Closing Few Trade with profit");
-            if(AllSymbols)
-            {
-                if(PendingOrders)
-                    if(!CloseDeleteAll())
-                        clear=false;
-                if(!PendingOrders)
-                    if(!CloseDeleteAllNonPending())
-                        clear=false;
-            }
-            if(!AllSymbols)
-            {
-                if(PendingOrders)
-                    if(!CloseDeleteAllCurrent())
-                        clear=false;
-                if(!PendingOrders)
-                    if(!CloseDeleteAllCurrentNonPending())
-                        clear=false;
-            }
-        }
-    } */
+
     // Closed the order for currency if exit value more than the model exist value
     if(PriceWhenOrderOpendForCurrentPair()!=0) {    
         //ObjectDelete("ModelExitPerc"+Symbol());
@@ -645,8 +590,8 @@ void OnTick() {
         
     }
      // Close all open order at end of day;
-    Print("Get Invested"+getInvestment(1) + " in"+getInvestment(0)+ " Account Profit"+AccountProfit());
-    if ((Hour() == TradingEndHour && Minute() >= TradingEndMin && OrdersTotal() > 0)|| MinOverallProfitPercent <= OverAllProfitCheck() ){
+    Print("OverAllProfitCheck: "+OverAllProfitCheck()+" row"+(MinOverallProfitPercent <= OverAllProfitCheck())+" TotalOpenedClosedOrders "+TotalOpenedClosedOrders);
+    if ((Hour() == TradingEndHour && Minute() >= TradingEndMin && OrdersTotal() > 0)|| (MinOverallProfitPercent <= OverAllProfitCheck() && TotalOpenedClosedOrders == rows)){
             Print("Closing All Orders Now.");
             CloseDeleteAll();
         }
