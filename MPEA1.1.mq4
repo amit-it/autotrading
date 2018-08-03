@@ -27,7 +27,7 @@ extern int TradingStartHour = 00;
 extern int TradingStartMin = 10;
 extern int TradingEndHour = 22;
 extern int TradingEndMin = 00;
-extern double MinOverallProfitPercent = 3; 
+extern double MinOverallProfitPercent = 0.025; 
 extern string Inditext = "Exit Percentage:";
 extern int Size = 14;
 string FontType = "Verdana";
@@ -304,6 +304,7 @@ double OverAllProfitCheck() {
     return 0;
     }    
     else {
+      //Print("Total Invested"+total_invested);
       return(profit/total_invested*100);
     }
 }
@@ -544,7 +545,7 @@ void OnTick() {
         double buyExistPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;
         //ObjectDelete("ExitPercPair"+Symbol());
         //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(buyExistPercentValue,5), Size,FontType, Color);
-        
+        Print("buyExistPerc:"+DoubleToString(buyExistPercentValue,3)+" modelPredictedExitPerc"+DoubleToString(modelPredictedDetails[3],3));
         if(buyExistPercentValue >  modelPredictedDetails[3]) {      
              if(AllSymbols)
                {
@@ -570,7 +571,8 @@ void OnTick() {
         double sellExistPercentValue = (MarketInfo(Symbol(), MODE_ASK) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;      
         //Print("Sell ExitV"+sellExistPercentValue+" ModelExitV"+modelPredictedDetails[3]);
         //ObjectDelete("ExitPercPair"+Symbol());
-        //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(sellExistPercentValue,5), Size,FontType, Color);  
+        //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(sellExistPercentValue,5), Size,FontType, Color); 
+        Print("sellExistPerc:"+DoubleToString(sellExistPercentValue,3)+" modelPredictedExitPerc"+DoubleToString(modelPredictedDetails[3],3)); 
         if(sellExistPercentValue <  modelPredictedDetails[3]) {      
              if(AllSymbols)
                {
