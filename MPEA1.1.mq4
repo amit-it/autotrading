@@ -17,7 +17,7 @@ extern bool      AllSymbols             = false;
 extern bool      PendingOrders          = true;
 extern double    MaxSlippage            = 3;
 input double     Lots          =0.1;
-extern string    FileName = "Trades-2018-07-12.CSV";
+extern string    FileName = "Trades-2018-08-02.CSV";
 extern int paircolindex = 0;
 extern int datecolindex = 1;
 extern bool MM = TRUE;
@@ -475,20 +475,26 @@ void OnTick() {
             return;
         }
         RefreshRates();
-
-        stoploss = NormalizeDouble(Ask*(100-modelPredictedDetails[4])/100,Digits);//NormalizeDouble(Bid-minstoplevel*Point,Digits);
+        
+        stoploss = NormalizeDouble(Bid*(100+modelPredictedDetails[4])/100,Digits);//NormalizeDouble(Bid-minstoplevel*Point,Digits);
         takeprofit = 0;//NormalizeDouble(Bid+minstoplevel*Point,Digits);
         // Check Buy condition for current symbol
-        
+        //Print("minSL"+(Ask-minstoplevel*Point)+" SL"+stoploss);
         if(modelPredictedDetails[1]==1){
+         double minstoploss = NormalizeDouble(Bid-minstoplevel*Point,Digits); 
+         if (stoploss > minstoploss) {stoploss = minstoploss; } 
             ticket=OrderSend(Symbol(),OP_BUY,oLots,Ask,3,stoploss, takeprofit,"",MAGICMA,0,Blue);
             if(ticket>0) {}
             else
                 Print("Error opening BUY order : ",GetLastError());
         }
-        stoploss = NormalizeDouble(Bid*(100-modelPredictedDetails[4])/100,Digits);
+        stoploss = NormalizeDouble(Ask*(100+modelPredictedDetails[4])/100,Digits);
         if(modelPredictedDetails[1]==-1)
         {        
+         double minstoploss = NormalizeDouble(Ask+minstoplevel*Point,Digits); 
+         Print("minSL"+minstoploss+" SL"+stoploss);
+         if (stoploss > minstoploss) {stoploss = minstoploss; } 
+         Print("minSL1"+minstoploss+" SL1"+stoploss);
          ticket=OrderSend(Symbol(),OP_SELL,oLots,Bid,3,stoploss,takeprofit,"",MAGICMA,0,Red);
          if(ticket>0){}
          else
