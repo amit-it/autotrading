@@ -7,6 +7,8 @@
 #property link      "https://www.mql5.com"
 #property version   "1.00"
 #property strict
+#define MAGICMA  0
+
 extern bool      useProfitToClose       = true;
 extern bool      useStopLoss            = false;
 extern double    profitToClose          = 0.25;
@@ -469,21 +471,21 @@ void OnTick() {
         }
         RefreshRates();
         
-        stoploss = NormalizeDouble(Bid*(100+modelPredictedDetails[4])/100,Digits);//NormalizeDouble(Bid-minstoplevel*Point,Digits);
+        stoploss = NormalizeDouble(Bid*(100+modelPredictedDetails[4])/100,Digits);
         takeprofit = 0;//NormalizeDouble(Bid+minstoplevel*Point,Digits);
-        // Check Buy condition for current symbol
-        //Print("minSL"+(Ask-minstoplevel*Point)+" SL"+stoploss);
-        if(modelPredictedDetails[1]==1){
+        // Check Buy condition for current symbol        
+        if(modelPredictedDetails[1]==1 && Ask <= modelPredictedDetails[5])
+        {
          double minstoploss = NormalizeDouble(Bid-minstoplevel*Point,Digits); 
          if (stoploss > minstoploss) {stoploss = minstoploss; }
          if (!useStopLoss) {stoploss = 0; }  
-            ticket=OrderSend(Symbol(),OP_BUY,oLots,Ask,3,stoploss, takeprofit,"",MAGICMA,0,Blue);
-            if(ticket>0) {}
-            else
-                Print("Error opening BUY order : ",GetLastError());
+         ticket=OrderSend(Symbol(),OP_BUY,oLots,Ask,3,stoploss, takeprofit,"",MAGICMA,0,Blue);
+         if(ticket>0) {}
+         else
+             Print("Error opening BUY order : ",GetLastError());
         }
         stoploss = NormalizeDouble(Ask*(100+modelPredictedDetails[4])/100,Digits);
-        if(modelPredictedDetails[1]==-1)
+        if(modelPredictedDetails[1]==-1 && Bid >= modelPredictedDetails[6])
         {        
          double minstoploss = NormalizeDouble(Ask+minstoplevel*Point,Digits); 
          if (stoploss < minstoploss) {stoploss = minstoploss; } 
@@ -526,19 +528,13 @@ void OnTick() {
         }
     }
 
-    profit = ProfitCheck();
-
+    
     // Closed the order for currency if exit value more than the model exist value
     if(PriceWhenOrderOpendForCurrentPair()!=0) {    
-        //ObjectDelete("ModelExitPerc"+Symbol());
-        //DisplayText("ModelExitPerc"+Symbol(), yLine, xCol, "Thresold  "+DoubleToString(modelPredictedDetails[3],5) , Size,FontType, Red);
-            
-        if(modelPredictedDetails[1]==1) {
-        double buyExistPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;
-        //ObjectDelete("ExitPercPair"+Symbol());
-        //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(buyExistPercentValue,5), Size,FontType, Color);
-        Print("buyExistPerc:"+DoubleToString(buyExistPercentValue,3)+" modelPredictedExitPerc"+DoubleToString(modelPredictedDetails[3],3));
-        if(buyExistPercentValue >  modelPredictedDetails[3]) {      
+        if(modelPredictedDetails[1]==1) 
+        {
+        double CloseValue = MarketInfo(Symbol(), MODE_BID);          
+        if(CloseValue >= modelPredictedDetails[6]) {       
              if(AllSymbols)
                {
                   if(PendingOrders)
@@ -559,13 +555,10 @@ void OnTick() {
                }
         }
         }
-        if(modelPredictedDetails[1]==-1){
-        double sellExistPercentValue = (MarketInfo(Symbol(), MODE_ASK) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;      
-        //Print("Sell ExitV"+sellExistPercentValue+" ModelExitV"+modelPredictedDetails[3]);
-        //ObjectDelete("ExitPercPair"+Symbol());
-        //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(sellExistPercentValue,5), Size,FontType, Color); 
-        Print("sellExistPerc:"+DoubleToString(sellExistPercentValue,3)+" modelPredictedExitPerc"+DoubleToString(modelPredictedDetails[3],3)); 
-        if(sellExistPercentValue <  modelPredictedDetails[3]) {      
+        if(modelPredictedDetails[1]==-1)
+        { 
+        double CloseValue = MarketInfo(Symbol(), MODE_ASK);          
+        if(CloseValue <= modelPredictedDetails[5]) {      
              if(AllSymbols)
                {
                   if(PendingOrders)
@@ -584,8 +577,8 @@ void OnTick() {
                      if(!CloseDeleteAllCurrentNonPending())
                         clear=false;
                }
-        }
-        }        
+           }
+        }     
                       
         
     }
@@ -598,12 +591,6 @@ void OnTick() {
 
 }
 
-void DisplayText(string eName, int eYD, int eXD, string eText, int eSize, string eFont, color eColor) {
-   ObjectCreate(eName, OBJ_LABEL, window, 0, 0);
-   ObjectSet(eName, OBJPROP_CORNER, Corner);
-   ObjectSet(eName, OBJPROP_XDISTANCE, eXD);
-   ObjectSet(eName, OBJPROP_YDISTANCE, eYD);
-   ObjectSetText(eName, eText, eSize, eFont, eColor);
-}
+
 
 //+------------------------------------------------------------------+
