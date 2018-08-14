@@ -17,7 +17,7 @@ extern bool      AllSymbols             = false;
 extern bool      PendingOrders          = true;
 extern double    MaxSlippage            = 3;
 input double     Lots          =0.1;
-extern string    FileName = "Trades-2018-08-02.CSV";
+extern string    FileName = "Trades-2018-08-03.CSV";
 extern int paircolindex = 0;
 extern int datecolindex = 1;
 extern bool MM = TRUE;
@@ -441,6 +441,8 @@ void OnTick() {
     double modelPredictedDetails[10];
     double oLots,minstoplevel,stoploss,takeprofit,nolots;
     int    ticket,total,totalOrderInHistory;
+    datetime today_midnight=TimeCurrent()-(TimeCurrent()%(PERIOD_D1*60));
+    double TodayOpenPrice = iOpen(Symbol(), PERIOD_M1, iBarShift(Symbol(), PERIOD_M1, today_midnight));
     //IsTradeExistInHistory();
     // Check where is autotrading enabled or not
     if(IsTradeAllowed()==false)
@@ -493,9 +495,7 @@ void OnTick() {
         if(modelPredictedDetails[1]==-1)
         {        
          double minstoploss = NormalizeDouble(Ask+minstoplevel*Point,Digits); 
-         Print("minSL"+minstoploss+" SL"+stoploss);
-         if (stoploss > minstoploss) {stoploss = minstoploss; } 
-         Print("minSL1"+minstoploss+" SL1"+stoploss);
+         if (stoploss < minstoploss) {stoploss = minstoploss; } 
          ticket=OrderSend(Symbol(),OP_SELL,oLots,Bid,3,stoploss,takeprofit,"",MAGICMA,0,Red);
          if(ticket>0){}
          else
@@ -542,7 +542,7 @@ void OnTick() {
         //DisplayText("ModelExitPerc"+Symbol(), yLine, xCol, "Thresold  "+DoubleToString(modelPredictedDetails[3],5) , Size,FontType, Red);
             
         if(modelPredictedDetails[1]==1) {
-        double buyExistPercentValue = (MarketInfo(Symbol(), MODE_BID) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;
+        double buyExistPercentValue = (MarketInfo(Symbol(), MODE_BID) - TodayOpenPrice) / TodayOpenPrice*100;
         //ObjectDelete("ExitPercPair"+Symbol());
         //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(buyExistPercentValue,5), Size,FontType, Color);
         Print("buyExistPerc:"+DoubleToString(buyExistPercentValue,3)+" modelPredictedExitPerc"+DoubleToString(modelPredictedDetails[3],3));
@@ -568,7 +568,7 @@ void OnTick() {
         }
         }
         if(modelPredictedDetails[1]==-1){
-        double sellExistPercentValue = (MarketInfo(Symbol(), MODE_ASK) - PriceWhenOrderOpendForCurrentPair()) / PriceWhenOrderOpendForCurrentPair()*100;      
+        double sellExistPercentValue = (MarketInfo(Symbol(), MODE_ASK) - TodayOpenPrice) / TodayOpenPrice*100;      
         //Print("Sell ExitV"+sellExistPercentValue+" ModelExitV"+modelPredictedDetails[3]);
         //ObjectDelete("ExitPercPair"+Symbol());
         //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(sellExistPercentValue,5), Size,FontType, Color); 
