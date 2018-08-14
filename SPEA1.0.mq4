@@ -435,6 +435,8 @@ void OnTick() {
     double modelPredictedDetails[10];
     double oLots,minstoplevel,stoploss,takeprofit,nolots;
     int    ticket,total,totalOrderInHistory;
+    datetime today_midnight=TimeCurrent()-(TimeCurrent()%(PERIOD_D1*60));
+    double TodayOpenPrice = iOpen(Symbol(), PERIOD_M1, iBarShift(Symbol(), PERIOD_M1, today_midnight));
     //IsTradeExistInHistory();
     // Check where is autotrading enabled or not
     if(IsTradeAllowed()==false)
@@ -443,7 +445,7 @@ void OnTick() {
         return;
     }
     if(CheckTradingTime()){
-    Print("Trade is not allowed at this time.");
+        Print("Trade is not allowed at this time.");
         return;
     }
 
@@ -484,7 +486,10 @@ void OnTick() {
          else
              Print("Error opening BUY order : ",GetLastError());
         }
+        
         stoploss = NormalizeDouble(Ask*(100+modelPredictedDetails[4])/100,Digits);
+        // Check Sell condition for current symbol     
+        
         if(modelPredictedDetails[1]==-1 && Bid >= modelPredictedDetails[6])
         {        
          double minstoploss = NormalizeDouble(Ask+minstoplevel*Point,Digits); 
@@ -494,8 +499,7 @@ void OnTick() {
          if(ticket>0){}
          else
             Print("Error opening SELL order : ",GetLastError());
-        }
-        
+        }        
     }
 
     if(!clear)
@@ -590,7 +594,5 @@ void OnTick() {
         }
 
 }
-
-
 
 //+------------------------------------------------------------------+
