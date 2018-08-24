@@ -17,7 +17,7 @@ extern bool      AllSymbols             = false;
 extern bool      PendingOrders          = true;
 extern double    MaxSlippage            = 3;
 input double     Lots          =0.1;
-extern string    FileName = "Trades-2018-08-03.CSV";
+extern string    FileName = "Trades-2018-08-24.CSV";
 extern int paircolindex = 0;
 extern int datecolindex = 1;
 extern bool MM = TRUE;
@@ -39,7 +39,7 @@ extern int window = 0;
 extern double StartingAccountBalance; 
 
 string mp[6][10000]; // variable to store model results in array
-int rows ;
+int rows,rowsBuyOrCell ;
 
 double pips2dbl, pips2point, pipValue, maxSlippage, profit;
 bool   clear;
@@ -50,7 +50,7 @@ bool   clear;
 //+------------------------------------------------------------------+
 
 int OnInit(){
-    int row=0,col=0;
+    int row=0,col=0,rowsBuyOrCell=0;;
     int colCnt;
     StartingAccountBalance = AccountBalance();
     int handle=FileOpen(FileName,FILE_CSV|FILE_READ,",");
@@ -95,18 +95,22 @@ int OnInit(){
     // Open Chart window for currency pairs listed in model results
     
    
-    for(int i = 1; i <= rows ; i++){   
-        string sy = mp[0][i];
-        StringToUpper(sy);        
-        long chartId= CheckChartWindowOpen(sy);
-        if(chartId>0){
-        ChartRedraw(chartId);
-        Sleep(1000);
-        }
-        else {
-        ChartOpen(sy,PERIOD_D1);
-        Sleep(1000);
-        }               
+    for(int i = 1; i <= rows ; i++){  
+        if(mp[2][i]!=0){
+           rowsBuyOrCell++;
+           string sy = mp[0][i];
+           StringToUpper(sy);        
+           long chartId= CheckChartWindowOpen(sy);
+           if(chartId>0){
+           ChartRedraw(chartId);
+           Sleep(1000);
+           }
+           else {
+           ChartOpen(sy,PERIOD_D1);
+           Sleep(1000);
+           }
+        } 
+                       
     }
     
     clear = true;
@@ -598,8 +602,8 @@ void OnTick() {
         
     }
      // Close all open order at end of day;
-    Print("OverAllProfitCheck: "+OverAllProfitCheck()+" row"+(MinOverallProfitPercent <= OverAllProfitCheck())+" TotalOpenedClosedOrders "+TotalOpenedClosedOrders);
-    if ((Hour() == TradingEndHour && Minute() >= TradingEndMin && OrdersTotal() > 0)|| (MinOverallProfitPercent <= OverAllProfitCheck() && TotalOpenedClosedOrders == rows)){
+    Print("OverAllProfitCheck: "+OverAllProfitCheck()+" rows"+rowsBuyOrCell+", "+(MinOverallProfitPercent <= OverAllProfitCheck())+" TotalOpenedClosedOrders "+TotalOpenedClosedOrders);
+    if ((Hour() == TradingEndHour && Minute() >= TradingEndMin && OrdersTotal() > 0)|| (MinOverallProfitPercent <= OverAllProfitCheck() && TotalOpenedClosedOrders == rowsBuyOrCell)){
             Print("Closing All Orders Now.");
             CloseDeleteAll();
         }
