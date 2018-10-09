@@ -1,34 +1,32 @@
 //+------------------------------------------------------------------+
-//|                                                      SPEA1.0.mq4 |
-//|                                                             amit |
-//|                                             https://www.mql5.com |
+//|                                                MPEA1.0.mq4 |
+//|                                                       amit |
 //+------------------------------------------------------------------+
 #property copyright "amit"
-#property link      "https://www.mql5.com"
+#property link      ""
 #property version   "1.00"
 #property strict
 #define MAGICMA  0
 
+//Initializing variables
 extern bool      useProfitToClose       = true;
-extern bool      useStopLoss            = false;
 extern double    profitToClose          = 0.25;
 extern bool      useLossToClose         = false;
 extern double    lossToClose            = 50;
 extern bool      AllSymbols             = false;
 extern bool      PendingOrders          = true;
 extern double    MaxSlippage            = 3;
-extern string    FileName = "Trades-Strat2-2018-10-07.CSV";
+extern string    FileName = "Trades-2018-10-09.CSV";
 extern int paircolindex = 0;
 extern int datecolindex = 1;
 extern bool MM = TRUE;
-extern double FixedSL = 5;
-extern double AccountBalanceRiskPerc = 0.20;
+extern double AccountBalanceRiskPerc = 0.30;
 extern double LotDigits =2;
 extern int TradingStartHour = 00;
 extern int TradingStartMin = 10;
-extern int TradingEndHour = 22;
+extern int TradingEndHour = 15;
 extern int TradingEndMin = 00;
-extern double MinOverallProfitPercent = 1.0;
+extern double MinOverallProfitPercent = 2.0; 
 extern string Inditext = "Exit Percentage:";
 extern int Size = 14;
 string FontType = "Verdana";
@@ -37,9 +35,9 @@ extern int Corner = 0;
 extern int yLine = 20;
 extern int xCol = 10;
 extern int window = 0;
-extern double StartingAccountBalance;
+extern double StartingAccountBalance; 
 
-string mp[8][10000]; // variable to store model results in array
+string mp[6][10000]; // variable to store model results in array
 int rows,rowsBuyOrCell ;
 
 double pips2dbl, pips2point, pipValue, maxSlippage, profit;
@@ -94,13 +92,13 @@ int OnInit(){
         pips2dbl = Point;   pips2point = 1;pipValue = (MarketInfo(Symbol(),MODE_TICKVALUE))*1;
     }
     // Open Chart window for currency pairs listed in model results
-
-
-    for(int i = 1; i <= rows ; i++){
+    
+   
+    for(int i = 1; i <= rows ; i++){  
         if(mp[2][i]!=0){
            rowsBuyOrCell++;
            string sy = mp[0][i];
-           StringToUpper(sy);
+           StringToUpper(sy);        
            long chartId= CheckChartWindowOpen(sy);
            if(chartId>0){
            ChartRedraw(chartId);
@@ -110,10 +108,10 @@ int OnInit(){
            ChartOpen(sy,PERIOD_D1);
            Sleep(1000);
            }
-        }
-
+        } 
+                       
     }
-
+    
     clear = true;
     return(0);
 }
@@ -369,13 +367,13 @@ double GetLots(double Risk) {
     double lotsize = MarketInfo(Symbol(), MODE_LOTSIZE);
     double stoplevel = MarketInfo(Symbol(), MODE_STOPLEVEL);
     double pricePerLot = MarketInfo(Symbol(),MODE_MARGINREQUIRED);
-
+    
     if(MM)
     {
         lots = NormalizeDouble(StartingAccountBalance * AccountBalanceRiskPerc * Risk/100 / pricePerLot, LotDigits);
         //Print("New Lot Size"+lots+" MaxLotsAllowed"+maxlot);
         if(lots < minlot) lots = minlot;
-
+                
         if (AccountFreeMargin() < Ask * lots * lotsize / leverage) {
             //Print("We have no money. Lots = ", lots, " , Free Margin = ", AccountFreeMargin());
         }
@@ -402,10 +400,9 @@ void getModelPredictedValue( double& mpv[],datetime current_time,string pair){
             mpv[2] = mp[3][i];
             mpv[3] = mp[4][i];
             mpv[4] = mp[5][i];
-            mpv[5] = mp[6][i];
-            mpv[6] = mp[7][i];
         }
-    }   
+    }
+    //Print("MV"+mpv[2]);
     return;
 }
 
@@ -459,15 +456,15 @@ void OnTick() {
         return;
     }
     if(CheckTradingTime()){
-        Print("Trade is not allowed at this time.");
+    Print("Trade is not allowed at this time.");
         return;
     }
 
     getModelPredictedValue(modelPredictedDetails,TimeCurrent(),Symbol());
 
     minstoplevel=MarketInfo(Symbol(),MODE_STOPLEVEL);
-    double wtg = 1/14;  //modelPredictedDetails[2]
-    oLots = GetLots(wtg);
+
+    oLots = GetLots(modelPredictedDetails[2]); 
 
     total=OrdersTotal();
     totalOrderInHistory = TotalClosedOrderInHistory();
@@ -481,82 +478,36 @@ void OnTick() {
             Print("We have no money. Free Margin = ",AccountFreeMargin());
             return;
         }
-
+        if(modelPredictedDetails[1]==0){
+            Print("Model Predictition NA for this.");
+            return;
+        }
         RefreshRates();
-        // Check Buy condition for current symbol  
-        double MinPrice = TodayOpenPrice * (100+modelPredictedDetails[5])/100;
-        Print("Ask:"+Ask+" Min"+MinPrice+" Buy Condition:"+(Ask<=MinPrice));
         
-        if(Ask <= TodayOpenPrice * (100+modelPredictedDetails[6])/100) {
-        stoploss = NormalizeDouble(Ask*(100-FixedSL)/100,Digits); 
-        double minstoploss = NormalizeDouble(Ask - minstoplevel*Point,Digits);
-        takeprofit = NormalizeDouble(TodayOpenPrice*(100+modelPredictedDetails[5])/100,Digits);
-        if (stoploss < minstoploss) {stoploss = minstoploss; } 
-        Print("Buy SL:"+stoploss+",& TP:"+takeprofit);
-        ticket=OrderSend(Symbol(),OP_BUY,oLots,Ask,3,stoploss, takeprofit,"",MAGICMA,0,Blue);
-        if(ticket>0) {}
-        else
-            Print("Error opening BUY order : ",GetLastError());
-        
-        }
-        // Check Sell condition for current symbol  
-        double MaxPrice = TodayOpenPrice * (100+modelPredictedDetails[5])/100;
-        Print("Bid:"+Bid+" Max"+MaxPrice+", Sell Condition:"+(Bid>=MaxPrice));
-        
-        if(Bid >= TodayOpenPrice * (100+modelPredictedDetails[5])/100) {
-        stoploss = NormalizeDouble(Bid*(100-FixedSL)/100,Digits); 
-        double minstoploss = NormalizeDouble(Bid+minstoplevel*Point,Digits);
-        takeprofit = NormalizeDouble(TodayOpenPrice*(100-modelPredictedDetails[6])/100,Digits);   
-        if (stoploss < minstoploss) {stoploss = minstoploss; } 
-        Print("Buy SL:"+stoploss+",& TP:"+takeprofit);
-        ticket=OrderSend(Symbol(),OP_SELL,oLots,Bid,3,stoploss,takeprofit,"",MAGICMA,0,Red);
-        if(ticket>0){}
-        else
-           Print("Error opening SELL order : ",GetLastError());        
-        }
-        
-        /*
-        
-        // Check Buy condition for current symbol  
+        stoploss = NormalizeDouble(Bid*(100+modelPredictedDetails[4])/100,Digits);//NormalizeDouble(Bid-minstoplevel*Point,Digits);
+        takeprofit = NormalizeDouble(TodayOpenPrice*(100+modelPredictedDetails[3])/100,Digits);
+        // Check Buy condition for current symbol
+        //Print("minSL"+(Ask-minstoplevel*Point)+" SL"+stoploss);
         if(modelPredictedDetails[1]==1){
-        Print("Ask:"+Ask+" ,Max:"+modelPredictedDetails[5]);
-        }
-        else {
-        Print("Bid:"+Bid+" ,Min:"+modelPredictedDetails[6]);
-        }      
-        ticket = 0;
-        if(modelPredictedDetails[1]==1 )//&& Ask <= modelPredictedDetails[5])
-        {
-         takeprofit = NormalizeDouble(TodayOpenPrice*(100+modelPredictedDetails[5])/100,Digits);
-         double minstoploss = NormalizeDouble(Bid-minstoplevel*Point,Digits);
-         stoploss = NormalizeDouble(TodayOpenPrice*(100-FixedSL)/100,Digits); 
+         double minstoploss = NormalizeDouble(Bid-minstoplevel*Point,Digits); 
          if (stoploss > minstoploss) {stoploss = minstoploss; } 
-                 
-         Print("Ask"+Ask+",SL"+stoploss+",TP"+takeprofit);
-         if (!useStopLoss) {stoploss = 0; }  
-         //ticket=OrderSend(Symbol(),OP_BUY,oLots,Ask,3,stoploss, takeprofit,"",MAGICMA,0,Blue);
-         if(ticket>0) {}
-         else
-             Print("Error opening BUY order : ",GetLastError());
+            ticket=OrderSend(Symbol(),OP_BUY,oLots,Ask,3,stoploss, takeprofit,"",MAGICMA,0,Blue);
+            if(ticket>0) {}
+            else
+                Print("Error opening BUY order : ",GetLastError());
         }
-        
         stoploss = NormalizeDouble(Ask*(100+modelPredictedDetails[4])/100,Digits);
-        // Check Sell condition for current symbol     
-        
-        if(modelPredictedDetails[1]==-1)// && Bid >= modelPredictedDetails[6])
-        {
-         takeprofit = NormalizeDouble(TodayOpenPrice*(100-modelPredictedDetails[6])/100,Digits);        
-         double minstoploss = NormalizeDouble(Ask+minstoplevel*Point,Digits);
-         stoploss = NormalizeDouble(TodayOpenPrice*(100+FixedSL)/100,Digits);  
+        takeprofit = NormalizeDouble(TodayOpenPrice*(100+modelPredictedDetails[3])/100,Digits);
+        if(modelPredictedDetails[1]==-1)
+        {        
+         double minstoploss = NormalizeDouble(Ask+minstoplevel*Point,Digits); 
          if (stoploss < minstoploss) {stoploss = minstoploss; } 
-         Print("Bid"+Bid+",SL"+stoploss+",TP"+takeprofit);
-         if (!useStopLoss) {stoploss = 0; }
-          ticket=OrderSend(Symbol(),OP_SELL,oLots,Bid,3,stoploss,takeprofit,"",MAGICMA,0,Red);
+         ticket=OrderSend(Symbol(),OP_SELL,oLots,Bid,3,stoploss,takeprofit,"",MAGICMA,0,Red);
          if(ticket>0){}
          else
             Print("Error opening SELL order : ",GetLastError());
-        }   
-        */     
+        }
+        
     }
 
     if(!clear)
@@ -589,13 +540,19 @@ void OnTick() {
         }
     }
 
-    
+    profit = ProfitCheck();
+/*
     // Closed the order for currency if exit value more than the model exist value
     if(PriceWhenOrderOpendForCurrentPair()!=0) {    
-        if(modelPredictedDetails[1]==1) 
-        {
-        double CloseValue = MarketInfo(Symbol(), MODE_BID);          
-        if(CloseValue >= modelPredictedDetails[6]) {       
+        //ObjectDelete("ModelExitPerc"+Symbol());
+        //DisplayText("ModelExitPerc"+Symbol(), yLine, xCol, "Thresold  "+DoubleToString(modelPredictedDetails[3],5) , Size,FontType, Red);
+            
+        if(modelPredictedDetails[1]==1) {
+        double buyExistPercentValue = (MarketInfo(Symbol(), MODE_BID) - TodayOpenPrice) / TodayOpenPrice*100;
+        //ObjectDelete("ExitPercPair"+Symbol());
+        //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(buyExistPercentValue,5), Size,FontType, Color);
+        Print("Profit:"+profit+" buyExistPerc:"+DoubleToString(buyExistPercentValue,3)+" modelPredictedExitPerc"+DoubleToString(modelPredictedDetails[3],3));
+        if(buyExistPercentValue >  modelPredictedDetails[3]) {      
              if(AllSymbols)
                {
                   if(PendingOrders)
@@ -616,10 +573,13 @@ void OnTick() {
                }
         }
         }
-        if(modelPredictedDetails[1]==-1)
-        { 
-        double CloseValue = MarketInfo(Symbol(), MODE_ASK);          
-        if(CloseValue <= modelPredictedDetails[5]) {      
+        if(modelPredictedDetails[1]==-1){
+        double sellExistPercentValue = (MarketInfo(Symbol(), MODE_ASK) - TodayOpenPrice) / TodayOpenPrice*100;      
+        //Print("Sell ExitV"+sellExistPercentValue+" ModelExitV"+modelPredictedDetails[3]);
+        //ObjectDelete("ExitPercPair"+Symbol());
+        //DisplayText("ExitPercPair"+Symbol(), yLine+30, xCol, Inditext+"  "+ DoubleToString(sellExistPercentValue,5), Size,FontType, Color); 
+        Print("Profit:"+profit+" sellExistPerc:"+DoubleToString(sellExistPercentValue,3)+" modelPredictedExitPerc"+DoubleToString(modelPredictedDetails[3],3)); 
+        if(sellExistPercentValue <  modelPredictedDetails[3]) {      
              if(AllSymbols)
                {
                   if(PendingOrders)
@@ -638,11 +598,12 @@ void OnTick() {
                      if(!CloseDeleteAllCurrentNonPending())
                         clear=false;
                }
-           }
-        }     
+        }
+        }        
                       
         
     }
+    */
      // Close all open order at end of day;
     Print("OverAllProfitPercent: "+OverAllProfitCheck());
     //double overallprofit_latest = (AccountEquity() - StartingAccountBalance)/ StartingAccountBalance * 100;
@@ -652,6 +613,14 @@ void OnTick() {
             CloseDeleteAll();
         }
 
+}
+
+void DisplayText(string eName, int eYD, int eXD, string eText, int eSize, string eFont, color eColor) {
+   ObjectCreate(eName, OBJ_LABEL, window, 0, 0);
+   ObjectSet(eName, OBJPROP_CORNER, Corner);
+   ObjectSet(eName, OBJPROP_XDISTANCE, eXD);
+   ObjectSet(eName, OBJPROP_YDISTANCE, eYD);
+   ObjectSetText(eName, eText, eSize, eFont, eColor);
 }
 
 //+------------------------------------------------------------------+
