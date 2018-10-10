@@ -17,18 +17,18 @@ extern double    lossToClose            = 50;
 extern bool      AllSymbols             = false;
 extern bool      PendingOrders          = true;
 extern double    MaxSlippage            = 3;
-extern string    FileName = "Trades-Strat2-2018-10-07.CSV";
+extern string    FileName = "Trades-Strat2-2018-10-10.CSV";
 extern int paircolindex = 0;
 extern int datecolindex = 1;
 extern bool MM = TRUE;
 extern double FixedSL = 5;
-extern double AccountBalanceRiskPerc = 0.20;
+extern double AccountBalanceRiskPerc = 0.01;
 extern double LotDigits =2;
 extern int TradingStartHour = 00;
 extern int TradingStartMin = 10;
-extern int TradingEndHour = 22;
+extern int TradingEndHour = 23;
 extern int TradingEndMin = 00;
-extern double MinOverallProfitPercent = 1.0;
+extern double MinOverallProfitPercent = 3.0;
 extern string Inditext = "Exit Percentage:";
 extern int Size = 14;
 string FontType = "Verdana";
@@ -96,8 +96,7 @@ int OnInit(){
     // Open Chart window for currency pairs listed in model results
 
 
-    for(int i = 1; i <= rows ; i++){
-        if(mp[2][i]!=0){
+    for(int i = 1; i <= rows ; i++){        
            rowsBuyOrCell++;
            string sy = mp[0][i];
            StringToUpper(sy);
@@ -109,8 +108,7 @@ int OnInit(){
            else {
            ChartOpen(sy,PERIOD_D1);
            Sleep(1000);
-           }
-        }
+           }        
 
     }
 
@@ -466,7 +464,7 @@ void OnTick() {
     getModelPredictedValue(modelPredictedDetails,TimeCurrent(),Symbol());
 
     minstoplevel=MarketInfo(Symbol(),MODE_STOPLEVEL);
-    double wtg = 1/14;  //modelPredictedDetails[2]
+    double wtg = 100/14;  //modelPredictedDetails[2]
     oLots = GetLots(wtg);
 
     total=OrdersTotal();
@@ -487,12 +485,12 @@ void OnTick() {
         double MinPrice = TodayOpenPrice * (100+modelPredictedDetails[5])/100;
         Print("Ask:"+Ask+" Min"+MinPrice+" Buy Condition:"+(Ask<=MinPrice));
         
-        if(Ask <= TodayOpenPrice * (100+modelPredictedDetails[6])/100) {
-        stoploss = NormalizeDouble(Ask*(100-FixedSL)/100,Digits); 
-        double minstoploss = NormalizeDouble(Ask - minstoplevel*Point,Digits);
+        if(Ask <= MinPrice) {
+        stoploss = NormalizeDouble(Bid*(100-FixedSL)/100,Digits); 
+        double minstoploss = NormalizeDouble(Bid - minstoplevel*Point,Digits);
         takeprofit = NormalizeDouble(TodayOpenPrice*(100+modelPredictedDetails[5])/100,Digits);
-        if (stoploss < minstoploss) {stoploss = minstoploss; } 
-        Print("Buy SL:"+stoploss+",& TP:"+takeprofit);
+        Print("Buy Ask:"+Ask+",minSL:"+minstoploss+", SL:"+stoploss+",& TP:"+takeprofit);
+        if (stoploss > minstoploss) {stoploss = minstoploss; }         
         ticket=OrderSend(Symbol(),OP_BUY,oLots,Ask,3,stoploss, takeprofit,"",MAGICMA,0,Blue);
         if(ticket>0) {}
         else
@@ -503,12 +501,12 @@ void OnTick() {
         double MaxPrice = TodayOpenPrice * (100+modelPredictedDetails[5])/100;
         Print("Bid:"+Bid+" Max"+MaxPrice+", Sell Condition:"+(Bid>=MaxPrice));
         
-        if(Bid >= TodayOpenPrice * (100+modelPredictedDetails[5])/100) {
-        stoploss = NormalizeDouble(Bid*(100-FixedSL)/100,Digits); 
-        double minstoploss = NormalizeDouble(Bid+minstoplevel*Point,Digits);
+        if(Bid >= MaxPrice) {
+        stoploss = NormalizeDouble(Ask*(100+FixedSL)/100,Digits); 
+        double minstoploss = NormalizeDouble(Ask+minstoplevel*Point,Digits);
         takeprofit = NormalizeDouble(TodayOpenPrice*(100-modelPredictedDetails[6])/100,Digits);   
-        if (stoploss < minstoploss) {stoploss = minstoploss; } 
-        Print("Buy SL:"+stoploss+",& TP:"+takeprofit);
+        Print("Sell Ask:"+Ask+",minSL:"+minstoploss+", SL:"+stoploss+",& TP:"+takeprofit);
+        if (stoploss < minstoploss) {stoploss = minstoploss; }         
         ticket=OrderSend(Symbol(),OP_SELL,oLots,Bid,3,stoploss,takeprofit,"",MAGICMA,0,Red);
         if(ticket>0){}
         else
